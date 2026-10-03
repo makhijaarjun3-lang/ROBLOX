@@ -1,0 +1,279 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+local guiName = "CompactTargetLocker"
+if CoreGui:FindFirstChild(guiName) then
+    CoreGui[guiName]:Destroy()
+elseif LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild(guiName) then
+    LocalPlayer.PlayerGui[guiName]:Destroy()
+end
+
+-- 1. Main ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = guiName
+local success = pcall(function() ScreenGui.Parent = CoreGui end)
+if not success then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+-- 2. Floating Toggle Button (🎯)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
+ToggleBtn.Position = UDim2.new(0, 10, 0.5, -20)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+ToggleBtn.Text = "🎯"
+ToggleBtn.TextSize = 25
+ToggleBtn.Draggable = true
+ToggleBtn.Active = true
+ToggleBtn.Parent = ScreenGui
+
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+local TglStroke = Instance.new("UIStroke", ToggleBtn)
+TglStroke.Thickness = 3
+TglStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- 3. Compact Main Background Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 220, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -110, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Thickness = 3
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- 4. Header Bar
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 35)
+Header.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+Header.Parent = MainFrame
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 8)
+local HeaderStroke = Instance.new("UIStroke", Header)
+HeaderStroke.Thickness = 3
+HeaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local HeaderFix = Instance.new("Frame")
+HeaderFix.Size = UDim2.new(1, 0, 0, 8)
+HeaderFix.Position = UDim2.new(0, 0, 1, -8)
+HeaderFix.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+HeaderFix.BorderSizePixel = 0
+HeaderFix.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Locker"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextStrokeTransparency = 0
+Title.Font = Enum.Font.FredokaOne
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 24, 0, 24)
+CloseBtn.Position = UDim2.new(1, -30, 0.5, -12)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextStrokeTransparency = 0
+CloseBtn.Font = Enum.Font.FredokaOne
+CloseBtn.TextSize = 14
+CloseBtn.Parent = Header
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+local CloseStroke = Instance.new("UIStroke", CloseBtn)
+CloseStroke.Thickness = 2
+CloseStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- 5. Target Status Text
+local TargetLabel = Instance.new("TextLabel")
+TargetLabel.Size = UDim2.new(1, 0, 0, 25)
+TargetLabel.Position = UDim2.new(0, 0, 0, 40)
+TargetLabel.BackgroundTransparency = 1
+TargetLabel.Text = "Target: None"
+TargetLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+TargetLabel.TextStrokeTransparency = 0
+TargetLabel.Font = Enum.Font.FredokaOne
+TargetLabel.TextSize = 14
+TargetLabel.Parent = MainFrame
+
+-- 6. Players List Box (Compact)
+local ContentBox = Instance.new("Frame")
+ContentBox.Size = UDim2.new(1, -20, 0, 130)
+ContentBox.Position = UDim2.new(0, 10, 0, 70)
+ContentBox.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+ContentBox.Parent = MainFrame
+Instance.new("UICorner", ContentBox).CornerRadius = UDim.new(0, 6)
+local ContentStroke = Instance.new("UIStroke", ContentBox)
+ContentStroke.Thickness = 2
+ContentStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -8, 1, -8)
+ScrollFrame.Position = UDim2.new(0, 4, 0, 4)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.ScrollBarThickness = 4
+ScrollFrame.Parent = ContentBox
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ScrollFrame
+UIListLayout.SortOrder = Enum.SortOrder.Name
+UIListLayout.Padding = UDim.new(0, 4)
+
+-- 7. Compact Action Buttons
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Size = UDim2.new(1, -20, 0, 30)
+RefreshBtn.Position = UDim2.new(0, 10, 0, 210)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+RefreshBtn.Text = "Refresh Players"
+RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshBtn.TextStrokeTransparency = 0
+RefreshBtn.Font = Enum.Font.FredokaOne
+RefreshBtn.TextSize = 14
+RefreshBtn.Parent = MainFrame
+Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 6)
+local RefStroke = Instance.new("UIStroke", RefreshBtn)
+RefStroke.Thickness = 2
+RefStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local StickBtn = Instance.new("TextButton")
+StickBtn.Size = UDim2.new(0.5, -15, 0, 35)
+StickBtn.Position = UDim2.new(0, 10, 0, 250)
+StickBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 50)
+StickBtn.Text = "Stick"
+StickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StickBtn.TextStrokeTransparency = 0
+StickBtn.Font = Enum.Font.FredokaOne
+StickBtn.TextSize = 16
+StickBtn.Parent = MainFrame
+Instance.new("UICorner", StickBtn).CornerRadius = UDim.new(0, 6)
+local StickStroke = Instance.new("UIStroke", StickBtn)
+StickStroke.Thickness = 2
+StickStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local UnlockBtn = Instance.new("TextButton")
+UnlockBtn.Size = UDim2.new(0.5, -15, 0, 35)
+UnlockBtn.Position = UDim2.new(0.5, 5, 0, 250)
+UnlockBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+UnlockBtn.Text = "Unlock"
+UnlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+UnlockBtn.TextStrokeTransparency = 0
+UnlockBtn.Font = Enum.Font.FredokaOne
+UnlockBtn.TextSize = 16
+UnlockBtn.Parent = MainFrame
+Instance.new("UICorner", UnlockBtn).CornerRadius = UDim.new(0, 6)
+local UnlockStroke = Instance.new("UIStroke", UnlockBtn)
+UnlockStroke.Thickness = 2
+UnlockStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- 8. Logic & Connections
+local selectedTarget = nil
+local isSticking = false
+local loopConnection = nil
+local savedPosition = nil -- Yahan purani position save hogi
+
+local function populatePlayers()
+    for _, child in pairs(ScrollFrame:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    
+    local count = 0
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            count = count + 1
+            local pButton = Instance.new("TextButton")
+            pButton.Size = UDim2.new(1, -5, 0, 25)
+            pButton.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+            pButton.Text = player.Name
+            pButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            pButton.TextStrokeTransparency = 0
+            pButton.Font = Enum.Font.FredokaOne
+            pButton.TextSize = 14
+            pButton.Parent = ScrollFrame
+            
+            Instance.new("UICorner", pButton).CornerRadius = UDim.new(0, 4)
+            local pStroke = Instance.new("UIStroke", pButton)
+            pStroke.Thickness = 1
+            pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            
+            pButton.MouseButton1Click:Connect(function()
+                selectedTarget = player
+                TargetLabel.Text = "Target: " .. player.Name
+            end)
+        end
+    end
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 29)
+end
+
+local function stopSticking()
+    isSticking = false
+    if loopConnection then
+        loopConnection:Disconnect()
+        loopConnection = nil
+    end
+    
+    -- Agar pehle ki position save hai, toh character ko waha teleport kar do
+    if savedPosition then
+        local myChar = LocalPlayer.Character
+        if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+            myChar.HumanoidRootPart.CFrame = savedPosition
+        end
+        savedPosition = nil -- Reset kar do
+    end
+end
+
+local function startSticking()
+    if not selectedTarget then return end
+    
+    local myChar = LocalPlayer.Character
+    -- Stick start karne se theek pehle current position ko save kar lena
+    if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+        savedPosition = myChar.HumanoidRootPart.CFrame
+    end
+    
+    isSticking = true
+    if loopConnection then loopConnection:Disconnect() end
+    
+    loopConnection = RunService.RenderStepped:Connect(function()
+        if not isSticking or not selectedTarget then
+            stopSticking()
+            return
+        end
+        
+        local targetChar = selectedTarget.Character
+        myChar = LocalPlayer.Character -- Update char in case of respawn
+        
+        if targetChar and myChar and targetChar:FindFirstChild("HumanoidRootPart") and myChar:FindFirstChild("HumanoidRootPart") then
+            local targetHRP = targetChar.HumanoidRootPart
+            local myHRP = myChar.HumanoidRootPart
+            
+            local offsetCFrame = targetHRP.CFrame * CFrame.new(0, 0, 3) 
+            myHRP.CFrame = CFrame.lookAt(offsetCFrame.Position, targetHRP.Position)
+        else
+            stopSticking()
+        end
+    end)
+end
+
+-- Toggle Button Logic (Menu hide/show karne ke liye)
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Main Close Button Logic
+CloseBtn.MouseButton1Click:Connect(function()
+    stopSticking()
+    ScreenGui:Destroy()
+end)
+
+RefreshBtn.MouseButton1Click:Connect(populatePlayers)
+StickBtn.MouseButton1Click:Connect(startSticking)
+UnlockBtn.MouseButton1Click:Connect(stopSticking)
+
+-- Initial Load
+populatePlayers()
