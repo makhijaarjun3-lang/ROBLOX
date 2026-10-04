@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 local guiName = "CompactTargetLocker"
@@ -145,11 +146,11 @@ local StickBtn = Instance.new("TextButton")
 StickBtn.Size = UDim2.new(0.5, -15, 0, 35)
 StickBtn.Position = UDim2.new(0, 10, 0, 250)
 StickBtn.BackgroundColor3 = Color3.fromRGB(50, 220, 50)
-StickBtn.Text = "Stick"
+StickBtn.Text = "Stick / Aim"
 StickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 StickBtn.TextStrokeTransparency = 0
 StickBtn.Font = Enum.Font.FredokaOne
-StickBtn.TextSize = 16
+StickBtn.TextSize = 15
 StickBtn.Parent = MainFrame
 Instance.new("UICorner", StickBtn).CornerRadius = UDim.new(0, 6)
 local StickStroke = Instance.new("UIStroke", StickBtn)
@@ -164,7 +165,7 @@ UnlockBtn.Text = "Unlock"
 UnlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 UnlockBtn.TextStrokeTransparency = 0
 UnlockBtn.Font = Enum.Font.FredokaOne
-UnlockBtn.TextSize = 16
+UnlockBtn.TextSize = 15
 UnlockBtn.Parent = MainFrame
 Instance.new("UICorner", UnlockBtn).CornerRadius = UDim.new(0, 6)
 local UnlockStroke = Instance.new("UIStroke", UnlockBtn)
@@ -175,7 +176,7 @@ UnlockStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 local selectedTarget = nil
 local isSticking = false
 local loopConnection = nil
-local savedPosition = nil -- Yahan purani position save hogi
+local savedPosition = nil 
 
 local function populatePlayers()
     for _, child in pairs(ScrollFrame:GetChildren()) do
@@ -183,7 +184,8 @@ local function populatePlayers()
     end
     
     local count = 0
-    for _, player in pairs(Players:GetPlayers()) do
+    local playersList = Players:GetPlayers()
+    for _, player in pairs(playersList) do
         if player ~= LocalPlayer then
             count = count + 1
             local pButton = Instance.new("TextButton")
@@ -217,13 +219,21 @@ local function stopSticking()
         loopConnection = nil
     end
     
-    -- Agar pehle ki position save hai, toh character ko waha teleport kar do
+    -- Camera ko normal mode par set karo taaki Aimbot hat jaye
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+    end
+    
+    -- Purani position par wapas aana
     if savedPosition then
         local myChar = LocalPlayer.Character
         if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+            myChar.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+            myChar.HumanoidRootPart.RotVelocity = Vector3.new(0,0,0)
             myChar.HumanoidRootPart.CFrame = savedPosition
         end
-        savedPosition = nil -- Reset kar do
+        savedPosition = nil 
     end
 end
 
@@ -231,7 +241,6 @@ local function startSticking()
     if not selectedTarget then return end
     
     local myChar = LocalPlayer.Character
-    -- Stick start karne se theek pehle current position ko save kar lena
     if myChar and myChar:FindFirstChild("HumanoidRootPart") then
         savedPosition = myChar.HumanoidRootPart.CFrame
     end
@@ -239,6 +248,9 @@ local function startSticking()
     isSticking = true
     if loopConnection then loopConnection:Disconnect() end
     
+    local camera = workspace.CurrentCamera
+    
+    -- Aimbot aur Shift-lock override karne ke liye RenderStepped zaruri hai!
     loopConnection = RunService.RenderStepped:Connect(function()
         if not isSticking or not selectedTarget then
             stopSticking()
@@ -246,21 +258,32 @@ local function startSticking()
         end
         
         local targetChar = selectedTarget.Character
-        myChar = LocalPlayer.Character -- Update char in case of respawn
+        myChar = LocalPlayer.Character 
         
         if targetChar and myChar and targetChar:FindFirstChild("HumanoidRootPart") and myChar:FindFirstChild("HumanoidRootPart") then
             local targetHRP = targetChar.HumanoidRootPart
             local myHRP = myChar.HumanoidRootPart
             
-            local offsetCFrame = targetHRP.CFrame * CFrame.new(0, 0, 3) 
+            -- [1] STICK MECHANIC: Dushman ke theek piche chipkana aur uski taraf Face Lock karna
+            local offsetCFrame = targetHRP.CFrame * CFrame.new(0, 0, 1.2)
             myHRP.CFrame = CFrame.lookAt(offsetCFrame.Position, targetHRP.Position)
+            
+            myHRP.Velocity = Vector3.new(0,0,0)
+            myHRP.RotVelocity = Vector3.new(0,0,0)
+            
+            -- [2] AIMBOT MECHANIC: Camera strictly target par aim karega
+            camera.CameraType = Enum.CameraType.Scriptable
+            
+            -- Camera player ke piche set hoga aur theek dushman ke center par Lock/Aim karega
+            local camPos = myHRP.Position + (myHRP.CFrame.LookVector * -7) + Vector3.new(0, 2.5, 0)
+            camera.CFrame = CFrame.lookAt(camPos, targetHRP.Position)
         else
             stopSticking()
         end
     end)
 end
 
--- Toggle Button Logic (Menu hide/show karne ke liye)
+-- Toggle Button Logic
 ToggleBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
