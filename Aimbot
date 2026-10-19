@@ -1,0 +1,144 @@
+local P, Cam, RS, UIS = game:GetService("Players").LocalPlayer, workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
+local CG = game:GetService("CoreGui")
+if CG:FindFirstChild("DeltaAimbotUI") then CG.DeltaAimbotUI:Destroy() end
+
+local S = {Aimbot = false, Team = false, WallCheck = true, Part = "Head", FOV = false, Rad = 120, Col = Color3.fromRGB(0, 255, 200)}
+
+local function c(cls, props)
+    local i = Instance.new(cls)
+    for k, v in pairs(props) do i[k] = v end
+    return i
+end
+local function corner(p, r) c("UICorner", {CornerRadius = UDim.new(0, r or 8), Parent = p}) end
+local function stroke(p, col) c("UIStroke", {Color = col or Color3.fromRGB(60,60,70), Thickness = 1.5, Parent = p}) end
+
+local Gui = c("ScreenGui", {Name = "DeltaAimbotUI", ResetOnSpawn = false, Parent = pcall(function() return CG end) and CG or P:WaitForChild("PlayerGui")})
+
+-- Non-Draggable Fixed Center FOV Circle
+local FOV = c("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, S.Rad * 2, 0, S.Rad * 2), BackgroundTransparency = 1, Visible = false, Parent = Gui})
+corner(FOV, 999)
+local FOVStroke = c("UIStroke", {Color = S.Col, Thickness = 1.5, Parent = FOV})
+
+-- Main UI Window Frame
+local Main = c("Frame", {Size = UDim2.new(0, 290, 0, 360), Position = UDim2.new(0.5, -145, 0.25, 0), BackgroundColor3 = Color3.fromRGB(20, 22, 28), Active = true, Parent = Gui})
+corner(Main, 12); stroke(Main, Color3.fromRGB(0, 255, 200))
+
+local Top = c("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Color3.fromRGB(28, 30, 38), Parent = Main}); corner(Top, 12)
+c("TextLabel", {Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 15, 0, 0), Text = "🎯 INSTANT AIMBOT", TextColor3 = Color3.fromRGB(0, 255, 200), TextSize = 16, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = Top})
+local MinBtn = c("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -35, 0, 5), BackgroundColor3 = Color3.fromRGB(40, 44, 55), Text = "-", TextColor3 = Color3.fromRGB(255, 255, 255), TextSize = 18, Font = Enum.Font.GothamBold, Parent = Top}); corner(MinBtn, 6)
+
+-- Dragging UI Window
+local drag, dStart, sPos
+Top.InputBegan:Connect(function(i) if i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch" then drag, dStart, sPos = true, i.Position, Main.Position end end)
+UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch") then local d = i.Position - dStart; Main.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + d.X, sPos.Y.Scale, sPos.Y.Offset + d.Y) end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch" then drag = false end end)
+
+-- UI Content Container
+local Content = c("ScrollingFrame", {Size = UDim2.new(1, -20, 1, -55), Position = UDim2.new(0, 10, 0, 48), BackgroundTransparency = 1, CanvasSize = UDim2.new(0, 0, 0, 410), ScrollBarThickness = 4, ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200), Parent = Main})
+c("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = Content})
+
+local function Toggle(txt, def, cb)
+    local st = def
+    local btn = c("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = st and Color3.fromRGB(0, 180, 140) or Color3.fromRGB(35, 38, 48), Text = txt .. ": " .. (st and "ON" or "OFF"), TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamMedium, TextSize = 13, Parent = Content})
+    corner(btn, 8)
+    btn.MouseButton1Click:Connect(function() st = not st; btn.BackgroundColor3 = st and Color3.fromRGB(0, 180, 140) or Color3.fromRGB(35, 38, 48); btn.Text = txt .. ": " .. (st and "ON" or "OFF"); cb(st) end)
+end
+
+local function Adjuster(txt, val, step, min, max, cb)
+    local f = c("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Color3.fromRGB(30, 33, 42), Parent = Content}); corner(f, 8)
+    local l = c("TextLabel", {Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.new(0, 10, 0, 0), Text = txt .. ": " .. val, TextColor3 = Color3.fromRGB(220, 220, 220), Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = f})
+    local function b(t, x, off)
+        local btn = c("TextButton", {Size = UDim2.new(0, 30, 0, 28), Position = UDim2.new(1, x, 0, 6), BackgroundColor3 = Color3.fromRGB(45, 48, 60), Text = t, TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, Parent = f}); corner(btn, 6)
+        btn.MouseButton1Click:Connect(function() val = math.clamp(math.floor((val + off) * 100) / 100, min, max); l.Text = txt .. ": " .. val; cb(val) end)
+    end
+    b("-", -70, -step); b("+", -35, step)
+end
+
+-- Controls
+Toggle("Enable Aimbot", S.Aimbot, function(v) S.Aimbot = v end)
+Toggle("Wall Check (Raycast)", S.WallCheck, function(v) S.WallCheck = v end)
+Toggle("Team Check", S.Team, function(v) S.Team = v end)
+
+-- Part Switcher (Head / Torso)
+local PartBtn = c("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Color3.fromRGB(35, 38, 48), Text = "Target Part: Head", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamMedium, TextSize = 13, Parent = Content}); corner(PartBtn, 8)
+PartBtn.MouseButton1Click:Connect(function()
+    S.Part = (S.Part == "Head") and "HumanoidRootPart" or "Head"
+    PartBtn.Text = "Target Part: " .. (S.Part == "HumanoidRootPart" and "Torso" or "Head")
+end)
+
+c("TextLabel", {Size = UDim2.new(1, 0, 0, 25), Text = "--- FOV CIRCLE SETTINGS ---", TextColor3 = Color3.fromRGB(120, 120, 140), Font = Enum.Font.GothamBold, TextSize = 11, BackgroundTransparency = 1, Parent = Content})
+Toggle("Show FOV Circle", S.FOV, function(v) S.FOV = v; FOV.Visible = v end)
+Adjuster("FOV Radius", S.Rad, 10, 30, 350, function(v) S.Rad = v; FOV.Size = UDim2.new(0, v * 2, 0, v * 2) end)
+
+-- Color Pickers
+local CF = c("Frame", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Color3.fromRGB(30, 33, 42), Parent = Content}); corner(CF, 8)
+c("TextLabel", {Size = UDim2.new(0.4, 0, 1, 0), Position = UDim2.new(0, 10, 0, 0), Text = "FOV Color:", TextColor3 = Color3.fromRGB(220, 220, 220), Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = CF})
+for i, col in ipairs({Color3.fromRGB(0, 255, 200), Color3.fromRGB(255, 50, 50), Color3.fromRGB(50, 255, 50), Color3.fromRGB(255, 200, 0)}) do
+    local cb = c("TextButton", {Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -(i * 28), 0, 7), BackgroundColor3 = col, Text = "", Parent = CF}); corner(cb, 11)
+    cb.MouseButton1Click:Connect(function() S.Col = col; FOVStroke.Color = col end)
+end
+
+local isMin = false
+MinBtn.MouseButton1Click:Connect(function() isMin = not isMin; Content.Visible = not isMin; Main.Size = isMin and UDim2.new(0, 290, 0, 40) or UDim2.new(0, 290, 0, 360); MinBtn.Text = isMin and "+" or "-" end)
+
+-- Raycast Visibility (Wall Check)
+local function IsVisible(part)
+    local origin = Cam.CFrame.Position
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {P.Character, Cam}
+    params.IgnoreWater = true
+    local result = workspace:Raycast(origin, part.Position - origin, params)
+    return result and result.Instance:IsDescendantOf(part.Parent) or false
+end
+
+-- MAIN AIMBOT LOOP (FOV CIRCLE VS 360 MODE)
+RS.RenderStepped:Connect(function()
+    if S.Aimbot then
+        local tgt = nil
+        local myChar = P.Character
+        local camPos = Cam.CFrame.Position
+        
+        if S.FOV then
+            -- Mode 1: FOV CIRCLE ON (Strict Circle Area & On-Screen Only)
+            local minDist, center = S.Rad, Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
+            for _, p in pairs(game:GetService("Players"):GetPlayers()) do
+                if p ~= P and p.Name ~= P.Name and p.Character and p.Character ~= myChar and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                    if not (S.Team and p.Team == P.Team) then
+                        local part = p.Character[S.Part]
+                        local pos, onScr = Cam:WorldToViewportPoint(part.Position)
+                        if onScr then
+                            local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                            if d < minDist then
+                                if not S.WallCheck or IsVisible(part) then
+                                    minDist, tgt = d, part
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            -- Mode 2: FOV CIRCLE OFF (Full 360 Degree Detection Anywhere Around You)
+            local minDist3D = math.huge
+            for _, p in pairs(game:GetService("Players"):GetPlayers()) do
+                if p ~= P and p.Name ~= P.Name and p.Character and p.Character ~= myChar and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                    if not (S.Team and p.Team == P.Team) then
+                        local part = p.Character[S.Part]
+                        local d3D = (part.Position - camPos).Magnitude
+                        if d3D < minDist3D then
+                            if not S.WallCheck or IsVisible(part) then
+                                minDist3D, tgt = d3D, part
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- INSTANT SNAP LOCK TO HEAD / TORSO
+        if tgt then
+            Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, tgt.Position)
+        end
+    end
+end)
