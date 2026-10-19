@@ -59,7 +59,7 @@ Toggle("Enable Aimbot", S.Aimbot, function(v) S.Aimbot = v end)
 Toggle("Wall Check (Raycast)", S.WallCheck, function(v) S.WallCheck = v end)
 Toggle("Team Check", S.Team, function(v) S.Team = v end)
 
--- Part Switcher (Head / Torso)
+-- Target Part Switcher
 local PartBtn = c("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Color3.fromRGB(35, 38, 48), Text = "Target Part: Head", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamMedium, TextSize = 13, Parent = Content}); corner(PartBtn, 8)
 PartBtn.MouseButton1Click:Connect(function()
     S.Part = (S.Part == "Head") and "HumanoidRootPart" or "Head"
@@ -92,26 +92,29 @@ local function IsVisible(part)
     return result and result.Instance:IsDescendantOf(part.Parent) or false
 end
 
--- MAIN AIMBOT LOOP (FOV CIRCLE VS 360 MODE)
+-- MAIN AIMBOT LOOP WITH 1500 STUDS DISTANCE LIMIT
 RS.RenderStepped:Connect(function()
     if S.Aimbot then
         local tgt = nil
         local myChar = P.Character
         local camPos = Cam.CFrame.Position
+        local MAX_DIST = 1500 -- 1500 Studs Max Distance Cap
         
         if S.FOV then
-            -- Mode 1: FOV CIRCLE ON (Strict Circle Area & On-Screen Only)
+            -- FOV CIRCLE MODE (Must be within 1500 Studs AND Inside FOV Circle)
             local minDist, center = S.Rad, Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
             for _, p in pairs(game:GetService("Players"):GetPlayers()) do
                 if p ~= P and p.Name ~= P.Name and p.Character and p.Character ~= myChar and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
                     if not (S.Team and p.Team == P.Team) then
                         local part = p.Character[S.Part]
-                        local pos, onScr = Cam:WorldToViewportPoint(part.Position)
-                        if onScr then
-                            local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                            if d < minDist then
-                                if not S.WallCheck or IsVisible(part) then
-                                    minDist, tgt = d, part
+                        if (part.Position - camPos).Magnitude <= MAX_DIST then
+                            local pos, onScr = Cam:WorldToViewportPoint(part.Position)
+                            if onScr then
+                                local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                                if d < minDist then
+                                    if not S.WallCheck or IsVisible(part) then
+                                        minDist, tgt = d, part
+                                    end
                                 end
                             end
                         end
@@ -119,14 +122,14 @@ RS.RenderStepped:Connect(function()
                 end
             end
         else
-            -- Mode 2: FOV CIRCLE OFF (Full 360 Degree Detection Anywhere Around You)
-            local minDist3D = math.huge
+            -- 360 DEGREE MODE (Closest enemy within 1500 Studs)
+            local minDist3D = MAX_DIST
             for _, p in pairs(game:GetService("Players"):GetPlayers()) do
                 if p ~= P and p.Name ~= P.Name and p.Character and p.Character ~= myChar and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
                     if not (S.Team and p.Team == P.Team) then
                         local part = p.Character[S.Part]
                         local d3D = (part.Position - camPos).Magnitude
-                        if d3D < minDist3D then
+                        if d3D <= minDist3D then
                             if not S.WallCheck or IsVisible(part) then
                                 minDist3D, tgt = d3D, part
                             end
@@ -136,7 +139,7 @@ RS.RenderStepped:Connect(function()
             end
         end
         
-        -- INSTANT SNAP LOCK TO HEAD / TORSO
+        -- INSTANT LOCK SNAP
         if tgt then
             Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, tgt.Position)
         end
