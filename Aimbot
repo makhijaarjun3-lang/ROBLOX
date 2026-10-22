@@ -1,8 +1,12 @@
 local P, Cam, RS, UIS = game:GetService("Players").LocalPlayer, workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
+local Players = game:GetService("Players")
 local CG = game:GetService("CoreGui")
 if CG:FindFirstChild("DeltaAimbotUI") then CG.DeltaAimbotUI:Destroy() end
 
-local S = {Aimbot = false, Team = false, WallCheck = true, Part = "Head", FOV = false, Rad = 120, Col = Color3.fromRGB(0, 255, 200)}
+-- Naya ESP Toggle add kiya hai
+local S = {Aimbot = false, ESP = false, Team = true, WallCheck = true, Part = "Head", FOV = false, Rad = 120, Col = Color3.fromRGB(0, 255, 200)}
+
+local PlayerRoles = {} -- Smart Team Check Memory
 
 local function c(cls, props)
     local i = Instance.new(cls)
@@ -20,11 +24,11 @@ corner(FOV, 999)
 local FOVStroke = c("UIStroke", {Color = S.Col, Thickness = 1.5, Parent = FOV})
 
 -- Main UI Window Frame
-local Main = c("Frame", {Size = UDim2.new(0, 290, 0, 360), Position = UDim2.new(0.5, -145, 0.25, 0), BackgroundColor3 = Color3.fromRGB(20, 22, 28), Active = true, Parent = Gui})
+local Main = c("Frame", {Size = UDim2.new(0, 290, 0, 400), Position = UDim2.new(0.5, -145, 0.25, 0), BackgroundColor3 = Color3.fromRGB(20, 22, 28), Active = true, Parent = Gui})
 corner(Main, 12); stroke(Main, Color3.fromRGB(0, 255, 200))
 
 local Top = c("Frame", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Color3.fromRGB(28, 30, 38), Parent = Main}); corner(Top, 12)
-c("TextLabel", {Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 15, 0, 0), Text = "🎯 INSTANT AIMBOT", TextColor3 = Color3.fromRGB(0, 255, 200), TextSize = 16, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = Top})
+c("TextLabel", {Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 15, 0, 0), Text = "🎯 PRO AIMBOT HUB", TextColor3 = Color3.fromRGB(0, 255, 200), TextSize = 16, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = Top})
 local MinBtn = c("TextButton", {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -35, 0, 5), BackgroundColor3 = Color3.fromRGB(40, 44, 55), Text = "-", TextColor3 = Color3.fromRGB(255, 255, 255), TextSize = 18, Font = Enum.Font.GothamBold, Parent = Top}); corner(MinBtn, 6)
 
 -- Dragging UI Window
@@ -34,7 +38,7 @@ UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType.Name:find("Mou
 UIS.InputEnded:Connect(function(i) if i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch" then drag = false end end)
 
 -- UI Content Container
-local Content = c("ScrollingFrame", {Size = UDim2.new(1, -20, 1, -55), Position = UDim2.new(0, 10, 0, 48), BackgroundTransparency = 1, CanvasSize = UDim2.new(0, 0, 0, 410), ScrollBarThickness = 4, ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200), Parent = Main})
+local Content = c("ScrollingFrame", {Size = UDim2.new(1, -20, 1, -55), Position = UDim2.new(0, 10, 0, 48), BackgroundTransparency = 1, CanvasSize = UDim2.new(0, 0, 0, 450), ScrollBarThickness = 4, ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200), Parent = Main})
 c("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = Content})
 
 local function Toggle(txt, def, cb)
@@ -56,8 +60,9 @@ end
 
 -- Controls
 Toggle("Enable Aimbot", S.Aimbot, function(v) S.Aimbot = v end)
+Toggle("Smart ESP (Red = Enemy)", S.ESP, function(v) S.ESP = v end)
 Toggle("Wall Check (Raycast)", S.WallCheck, function(v) S.WallCheck = v end)
-Toggle("Team Check", S.Team, function(v) S.Team = v end)
+Toggle("Smart Team Check (Spawn)", S.Team, function(v) S.Team = v end)
 
 -- Target Part Switcher
 local PartBtn = c("TextButton", {Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = Color3.fromRGB(35, 38, 48), Text = "Target Part: Head", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamMedium, TextSize = 13, Parent = Content}); corner(PartBtn, 8)
@@ -79,7 +84,26 @@ for i, col in ipairs({Color3.fromRGB(0, 255, 200), Color3.fromRGB(255, 50, 50), 
 end
 
 local isMin = false
-MinBtn.MouseButton1Click:Connect(function() isMin = not isMin; Content.Visible = not isMin; Main.Size = isMin and UDim2.new(0, 290, 0, 40) or UDim2.new(0, 290, 0, 360); MinBtn.Text = isMin and "+" or "-" end)
+MinBtn.MouseButton1Click:Connect(function() isMin = not isMin; Content.Visible = not isMin; Main.Size = isMin and UDim2.new(0, 290, 0, 40) or UDim2.new(0, 290, 0, 400); MinBtn.Text = isMin and "+" or "-" end)
+
+-- 🛑 SMART TEAM CHECK (Spawn Distance Logic)
+local function CheckSpawnDistance(plr)
+    task.wait(1)
+    if P.Character and P.Character:FindFirstChild("HumanoidRootPart") and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+        local dist = (P.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+        PlayerRoles[plr.Name] = (dist > 45) and "Enemy" or "Ally"
+    else
+        if not PlayerRoles[plr.Name] then PlayerRoles[plr.Name] = "Enemy" end
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr) plr.CharacterAdded:Connect(function() task.spawn(CheckSpawnDistance, plr) end) end)
+Players.PlayerRemoving:Connect(function(plr) PlayerRoles[plr.Name] = nil end)
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= P then
+        plr.CharacterAdded:Connect(function() task.spawn(CheckSpawnDistance, plr) end)
+    end
+end
 
 -- Raycast Visibility (Wall Check)
 local function IsVisible(part)
@@ -92,8 +116,30 @@ local function IsVisible(part)
     return result and result.Instance:IsDescendantOf(part.Parent) or false
 end
 
--- MAIN AIMBOT LOOP WITH 1500 STUDS DISTANCE LIMIT
+-- 🟢 UPDATE ESP (Smart Colors)
+local function UpdateESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= P and plr.Character then
+            if S.ESP then
+                if not plr.Character:FindFirstChild("ProESP") then
+                    local hl = c("Highlight", {Name = "ProESP", FillTransparency = 0.5, OutlineTransparency = 0, DepthMode = Enum.HighlightDepthMode.AlwaysOnTop, Parent = plr.Character})
+                end
+                local hl = plr.Character:FindFirstChild("ProESP")
+                if hl then
+                    -- Red for Enemy, Green for Ally
+                    hl.FillColor = (PlayerRoles[plr.Name] == "Ally") and Color3.fromRGB(0, 255, 50) or Color3.fromRGB(255, 0, 50) 
+                end
+            else
+                if plr.Character:FindFirstChild("ProESP") then plr.Character.ProESP:Destroy() end
+            end
+        end
+    end
+end
+
+-- MAIN AIMBOT LOOP WITH SMART TEAM CHECK
 RS.RenderStepped:Connect(function()
+    UpdateESP() -- Keeps ESP colors updated based on roles
+
     if S.Aimbot then
         local tgt = nil
         local myChar = P.Character
@@ -101,11 +147,13 @@ RS.RenderStepped:Connect(function()
         local MAX_DIST = 1500 -- 1500 Studs Max Distance Cap
         
         if S.FOV then
-            -- FOV CIRCLE MODE (Must be within 1500 Studs AND Inside FOV Circle)
+            -- FOV CIRCLE MODE
             local minDist, center = S.Rad, Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
-            for _, p in pairs(game:GetService("Players"):GetPlayers()) do
+            for _, p in pairs(Players:GetPlayers()) do
                 if p ~= P and p.Name ~= P.Name and p.Character and p.Character ~= myChar and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                    if not (S.Team and p.Team == P.Team) then
+                    -- 🛑 Smart Team Check Lagaya Yahan 🛑
+                    local isAlly = (PlayerRoles[p.Name] == "Ally")
+                    if not (S.Team and isAlly) then
                         local part = p.Character[S.Part]
                         if (part.Position - camPos).Magnitude <= MAX_DIST then
                             local pos, onScr = Cam:WorldToViewportPoint(part.Position)
@@ -122,11 +170,13 @@ RS.RenderStepped:Connect(function()
                 end
             end
         else
-            -- 360 DEGREE MODE (Closest enemy within 1500 Studs)
+            -- 360 DEGREE MODE
             local minDist3D = MAX_DIST
-            for _, p in pairs(game:GetService("Players"):GetPlayers()) do
+            for _, p in pairs(Players:GetPlayers()) do
                 if p ~= P and p.Name ~= P.Name and p.Character and p.Character ~= myChar and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
-                    if not (S.Team and p.Team == P.Team) then
+                    -- 🛑 Smart Team Check Lagaya Yahan 🛑
+                    local isAlly = (PlayerRoles[p.Name] == "Ally")
+                    if not (S.Team and isAlly) then
                         local part = p.Character[S.Part]
                         local d3D = (part.Position - camPos).Magnitude
                         if d3D <= minDist3D then
@@ -143,5 +193,13 @@ RS.RenderStepped:Connect(function()
         if tgt then
             Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, tgt.Position)
         end
+    end
+end)
+
+-- Initial Check
+task.spawn(function()
+    task.wait(1)
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= P then CheckSpawnDistance(plr) end
     end
 end)
