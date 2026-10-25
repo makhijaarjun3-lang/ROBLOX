@@ -1,0 +1,370 @@
+local P, Cam, RS, UIS = game:GetService("Players").LocalPlayer, workspace.CurrentCamera, game:GetService("RunService"), game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local CG = game:GetService("CoreGui")
+local TS = game:GetService("TweenService")
+
+if CG:FindFirstChild("DeltaUltimateUI") then CG.DeltaUltimateUI:Destroy() end
+if CG:FindFirstChild("DeltaESPFolder") then CG.DeltaESPFolder:Destroy() end
+
+local ESPFolder = Instance.new("Folder", CG); ESPFolder.Name = "DeltaESPFolder"
+
+local OWNER_NAME = "GG_gamerz002"
+
+-- 🎨 Modern Premium Color Palette
+local ACCENT = Color3.fromRGB(255, 60, 90)
+local ACCENT_GLOW = Color3.fromRGB(255, 110, 70)
+local BG_DARK = Color3.fromRGB(18, 20, 28)
+local BG_LIGHT = Color3.fromRGB(26, 29, 40)
+local BG_INPUT = Color3.fromRGB(12, 14, 20)
+local TEXT_MAIN = Color3.fromRGB(245, 245, 250)
+local TEXT_SUB = Color3.fromRGB(170, 175, 190)
+
+local S = { Aimbot = false, SmoothAim = false, Smooth = 15, FOV = false, Rad = 120, ESP = false, Team = true, WallCheck = true, Part = "Head", Fly = false, FlySpeed = 50, Speed = false, WalkSpeed = 50 }
+local PlayerRoles, SelectedPlayer, IsStuck, SavedPosition, CurrentAimTarget = {}, nil, false, nil, nil
+
+-- 🛠 UI Helpers
+local function tw(obj, props, time, style)
+    TS:Create(obj, TweenInfo.new(time or 0.3, style or Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props):Play()
+end
+local function c(cls, props)
+    local i = Instance.new(cls); for k, v in pairs(props) do i[k] = v end; return i
+end
+local function corner(p, r) c("UICorner", {CornerRadius = UDim.new(0, r or 8), Parent = p}) end
+local function stroke(p, col, thick) c("UIStroke", {Color = col or Color3.fromRGB(40, 45, 60), Thickness = thick or 1, Parent = p}) end
+local function gradient(p, c1, c2, rot) c("UIGradient", {Color = ColorSequence.new{ColorSequenceKeypoint.new(0, c1), ColorSequenceKeypoint.new(1, c2)}, Rotation = rot or 0, Parent = p}) end
+
+local Gui = c("ScreenGui", {Name = "DeltaUltimateUI", ResetOnSpawn = false, Parent = pcall(function() return CG end) and CG or P:WaitForChild("PlayerGui")})
+
+-- 🔥 SLIDE-IN NOTIFICATIONS 🔥
+local NotifContainer = c("Frame", {Size = UDim2.new(0, 260, 1, -100), Position = UDim2.new(0, 15, 0, 50), BackgroundTransparency = 1, Parent = Gui})
+c("UIListLayout", {Padding = UDim.new(0, 12), VerticalAlignment = Enum.VerticalAlignment.Top, Parent = NotifContainer})
+
+local function Notify(title, msg, color)
+    local wrapper = c("Frame", {Size = UDim2.new(1, 0, 0, 65), BackgroundTransparency = 1, Parent = NotifContainer})
+    local notif = c("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(-1.5, 0, 0, 0), BackgroundColor3 = BG_DARK, Parent = wrapper})
+    corner(notif, 12); stroke(notif, Color3.fromRGB(45, 50, 65), 1.5)
+    
+    local accent = c("Frame", {Size = UDim2.new(0, 5, 1, 0), BackgroundColor3 = color or ACCENT, Parent = notif}); corner(accent, 12)
+    gradient(accent, color or ACCENT, ACCENT_GLOW, 90)
+    
+    c("TextLabel", {Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 16, 0, 10), Text = title, TextColor3 = color or ACCENT, Font = Enum.Font.GothamBlack, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = notif})
+    c("TextLabel", {Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 16, 0, 32), Text = msg, TextColor3 = TEXT_SUB, Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = notif})
+    
+    tw(notif, {Position = UDim2.new(0, 0, 0, 0)}, 0.5, Enum.EasingStyle.Bounce)
+    task.delay(3.5, function()
+        tw(notif, {Position = UDim2.new(-1.5, 0, 0, 0)}, 0.4, Enum.EasingStyle.Back)
+        task.wait(0.4); wrapper:Destroy()
+    end)
+end
+
+-- FOV CIRCLE
+local FOVCircle = c("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, S.Rad * 2, 0, S.Rad * 2), BackgroundTransparency = 1, Visible = S.FOV, Parent = Gui})
+corner(FOVCircle, 999); stroke(FOVCircle, ACCENT, 1.5)
+
+-- 🌟 MAIN UI FRAME 🌟
+local Main = c("Frame", {Size = UDim2.new(0, 290, 0, 380), Position = UDim2.new(0.5, -145, 0.2, 0), BackgroundColor3 = BG_DARK, Active = true, Parent = Gui, ClipsDescendants = true})
+corner(Main, 12); stroke(Main, ACCENT, 1.5)
+gradient(Main, Color3.fromRGB(24, 27, 36), Color3.fromRGB(14, 15, 22), 45)
+
+local Top = c("Frame", {Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = Color3.fromRGB(15, 17, 24), BackgroundTransparency = 0.3, Parent = Main})
+local Title = c("TextLabel", {Size = UDim2.new(1, -40, 0, 22), Position = UDim2.new(0, 16, 0, 8), Text = "⚔️ RIVALS ULTIMATE", TextColor3 = Color3.fromRGB(255, 255, 255), TextSize = 16, Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = Top})
+gradient(Title, ACCENT, ACCENT_GLOW, 0)
+
+local SubLbl = c("TextLabel", {Size = UDim2.new(1, -40, 0, 12), Position = UDim2.new(0, 16, 0, 30), Text = "Made By Arjun (User: GG_gamerz002)", TextSize = 9, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = Top})
+task.spawn(function() while task.wait() do SubLbl.TextColor3 = Color3.fromHSV(tick() % 4 / 4, 1, 1) end end)
+
+local MinBtn = c("TextButton", {Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -38, 0, 11), BackgroundColor3 = BG_LIGHT, Text = "-", TextColor3 = Color3.fromRGB(255, 255, 255), TextSize = 16, Font = Enum.Font.GothamBold, Parent = Top, AutoButtonColor = false})
+corner(MinBtn, 8); stroke(MinBtn, Color3.fromRGB(55, 60, 75))
+
+local Div = c("Frame", {Size = UDim2.new(1, 0, 0, 2), Position = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0, Parent = Top})
+gradient(Div, ACCENT, ACCENT_GLOW, 90)
+
+local drag, dStart, sPos
+Top.InputBegan:Connect(function(i) if i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch" then drag, dStart, sPos = true, i.Position, Main.Position end end)
+UIS.InputChanged:Connect(function(i) if drag and (i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch") then local d = i.Position - dStart; Main.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + d.X, sPos.Y.Scale, sPos.Y.Offset + d.Y) end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType.Name:find("Mouse") or i.UserInputType.Name == "Touch" then drag = false end end)
+
+local Content = c("ScrollingFrame", {Size = UDim2.new(1, -16, 1, -65), Position = UDim2.new(0, 8, 0, 58), BackgroundTransparency = 1, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollBarThickness = 2, ScrollBarImageColor3 = ACCENT, Parent = Main})
+local Layout = c("UIListLayout", {Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = Content})
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Content.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 20) end)
+
+local curOrder = 0
+local function O() curOrder = curOrder + 10; return curOrder end
+
+-- 🔥 INFO BUBBLE SYSTEM WITH CLEAR EXPLANATIONS 🔥
+local function AttachInfo(parentFrame, infoString, layoutOrderNum, btnPos)
+    local InfoBtn = c("TextButton", {Size = UDim2.new(0, 24, 0, 24), AnchorPoint = Vector2.new(1, 0.5), Position = btnPos, BackgroundColor3 = Color3.fromRGB(35, 38, 50), Text = "?", TextColor3 = ACCENT_GLOW, Font = Enum.Font.GothamBlack, TextSize = 12, Parent = parentFrame, AutoButtonColor = false})
+    corner(InfoBtn, 12); stroke(InfoBtn, Color3.fromRGB(70, 75, 90))
+    
+    local InfoTxt = c("TextLabel", {Size = UDim2.new(1, 0, 0, 22), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = layoutOrderNum, BackgroundColor3 = Color3.fromRGB(30, 25, 35), Text = "💡 " .. infoString, TextColor3 = Color3.fromRGB(255, 210, 120), Font = Enum.Font.GothamMedium, TextSize = 14, TextWrapped = true, Visible = false, BackgroundTransparency = 1, TextTransparency = 1, Parent = Content})
+    corner(InfoTxt, 8); stroke(InfoTxt, Color3.fromRGB(255, 120, 60), 1)
+    c("UIPadding", {PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = InfoTxt})
+    
+    local InfoStroke = InfoTxt:FindFirstChildOfClass("UIStroke"); if InfoStroke then InfoStroke.Transparency = 1 end
+    
+    InfoBtn.MouseButton1Click:Connect(function()
+        tw(InfoBtn, {Size = UDim2.new(0, 20, 0, 20)}, 0.1); task.wait(0.1); tw(InfoBtn, {Size = UDim2.new(0, 24, 0, 24)}, 0.2, Enum.EasingStyle.Bounce)
+        InfoTxt.Visible = true; tw(InfoTxt, {BackgroundTransparency = 0.1, TextTransparency = 0}, 0.3)
+        if InfoStroke then tw(InfoStroke, {Transparency = 0.1}, 0.3) end
+        local clickTime = tick(); InfoTxt:SetAttribute("LastToggled", clickTime)
+        task.delay(10, function()
+            if InfoTxt:GetAttribute("LastToggled") == clickTime and InfoTxt.Visible then
+                tw(InfoTxt, {BackgroundTransparency = 1, TextTransparency = 1}, 0.5); if InfoStroke then tw(InfoStroke, {Transparency = 1}, 0.5) end
+                task.wait(0.5); if InfoTxt:GetAttribute("LastToggled") == clickTime then InfoTxt.Visible = false end
+            end
+        end)
+    end)
+end
+
+local function MakeHeader(txt, infoText) 
+    local order = O(); local container = c("Frame", {Size = UDim2.new(1, 0, 0, 24), LayoutOrder = order, BackgroundTransparency = 1, Parent = Content})
+    local ribbon = c("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = ACCENT, BackgroundTransparency = 0.85, Parent = container}); corner(ribbon, 6)
+    c("UIGradient", {Color = ColorSequence.new(ACCENT), Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1)}, Parent = ribbon})
+    c("Frame", {Size = UDim2.new(0, 4, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = ACCENT, BorderSizePixel = 0, Parent = container})
+    c("TextLabel", {Size = UDim2.new(1, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0), Text = txt, TextColor3 = ACCENT_GLOW, Font = Enum.Font.GothamBlack, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = container}) 
+    if infoText then AttachInfo(container, infoText, order + 1, UDim2.new(1, -4, 0.5, 0)) end
+end
+
+local function MakeToggle(txt, def, infoText, cb)
+    local st = def; local order = O()
+    local btn = c("TextButton", {Size = UDim2.new(1, 0, 0, 42), LayoutOrder = order, BackgroundColor3 = BG_LIGHT, Text = "", AutoButtonColor = false, Parent = Content}); corner(btn, 10); stroke(btn, Color3.fromRGB(45, 50, 65))
+    c("TextLabel", {Size = UDim2.new(0.65, 0, 1, 0), Position = UDim2.new(0, 14, 0, 0), Text = txt, TextColor3 = TEXT_MAIN, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = btn})
+    local track = c("Frame", {Size = UDim2.new(0, 42, 0, 22), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), BackgroundColor3 = st and ACCENT or Color3.fromRGB(40, 44, 55), Parent = btn}); corner(track, 12)
+    local knob = c("Frame", {Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(0, st and 22 or 2, 0.5, -9), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Parent = track}); corner(knob, 9)
+    local knobShad = c("Frame", {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 1), BackgroundColor3 = Color3.fromRGB(0,0,0), BackgroundTransparency = 0.8, ZIndex = knob.ZIndex - 1, Parent = knob}); corner(knobShad, 9)
+    if infoText then AttachInfo(btn, infoText, order + 1, UDim2.new(1, -62, 0.5, 0)) end
+    btn.MouseButton1Click:Connect(function() 
+        st = not st; tw(track, {BackgroundColor3 = st and ACCENT or Color3.fromRGB(40, 44, 55)}, 0.25)
+        tw(knob, {Position = UDim2.new(0, st and 22 or 2, 0.5, -9)}, 0.25, Enum.EasingStyle.Back); cb(st) 
+    end)
+end
+
+local function MakeTextbox(txt, def, minVal, maxVal, infoText, cb)
+    local order = O()
+    local f = c("Frame", {Size = UDim2.new(1, 0, 0, 42), LayoutOrder = order, BackgroundColor3 = BG_LIGHT, Parent = Content}); corner(f, 10); stroke(f, Color3.fromRGB(45, 50, 65))
+    c("TextLabel", {Size = UDim2.new(0.55, 0, 1, 0), Position = UDim2.new(0, 14, 0, 0), Text = txt, TextColor3 = TEXT_SUB, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = f})
+    local box = c("TextBox", {Size = UDim2.new(0.28, 0, 0, 28), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), BackgroundColor3 = BG_INPUT, Text = tostring(def), TextColor3 = ACCENT_GLOW, Font = Enum.Font.GothamBlack, TextSize = 13, Parent = f})
+    corner(box, 6); stroke(box, Color3.fromRGB(65, 70, 85))
+    if infoText then AttachInfo(f, infoText, order + 1, UDim2.new(1, -100, 0.5, 0)) end
+    box.FocusLost:Connect(function() 
+        local num = tonumber(box.Text); if num then num = math.clamp(num, minVal, maxVal); box.Text = tostring(num); cb(num) else box.Text = tostring(def); cb(def) end 
+    end)
+end
+
+MakeHeader("TARGETING", "Configure Aimbot settings here.")
+MakeToggle("Enable Aimbot", S.Aimbot, "Automatically locks your camera onto the nearest enemy's head. Make sure to turn on 'Spawn Team Check' so it ignores your teammates!", function(v) S.Aimbot = v; if not v then CurrentAimTarget = nil end; Notify("Aimbot", v and "Aimbot Enabled" or "Aimbot Disabled", v and ACCENT or Color3.fromRGB(255,60,60)) end)
+MakeToggle("Smooth Tracking", S.SmoothAim, "The Aimbot will smoothly track targets instead of instantly snapping to them. This makes your aim look 100% natural and legitimate.", function(v) S.SmoothAim = v end)
+MakeTextbox("Smoothness", S.Smooth, 1, 100, "Enter a number from 1 to 100. '1' is an instant snap, while '100' is extremely slow and smooth. 15 or 20 is usually the best setting!", function(v) S.Smooth = v end)
+MakeToggle("Show FOV Circle", S.FOV, "Displays a visible circle on your screen. The Aimbot will ONLY target enemies that are inside this circle, keeping your aimbot safe and natural.", function(v) S.FOV = v; FOVCircle.Visible = v end)
+MakeTextbox("FOV Radius", S.Rad, 30, 800, "Adjusts the size of the FOV Circle. A larger number makes the circle bigger, allowing the aimbot to catch enemies further away from your crosshair.", function(v) S.Rad = v; tw(FOVCircle, {Size = UDim2.new(0, v*2, 0, v*2)}, 0.4, Enum.EasingStyle.Elastic) end)
+
+MakeHeader("ESP & LOGIC", "Visuals and game logic.")
+MakeToggle("Smart Highlight ESP", S.ESP, "See players through walls! Enemies will glow RED 🔴, and your teammates will glow GREEN 🟢.", function(v) S.ESP = v end)
+MakeToggle("Strict Wall Check", S.WallCheck, "If an enemy is hiding behind a wall, the Aimbot will NOT lock onto them. This prevents you from suspiciously aiming at walls.", function(v) S.WallCheck = v end)
+MakeToggle("Spawn Team Check", S.Team, "Highly Recommended! Automatically identifies enemies and teammates based on how far away they spawn from you. Essential for custom matches.", function(v) S.Team = v end)
+
+-- 🔥 REFRESH BUTTON 🔥
+local RefOrder = O()
+local RefRow = c("Frame", {Size = UDim2.new(1, 0, 0, 40), LayoutOrder = RefOrder, BackgroundTransparency = 1, Parent = Content})
+
+local RefBg = c("Frame", {Size = UDim2.new(0.82, 0, 1, 0), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.41, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Parent = RefRow})
+corner(RefBg, 10); stroke(RefBg, Color3.fromRGB(100, 45, 200), 1.5)
+gradient(RefBg, Color3.fromRGB(130, 60, 255), Color3.fromRGB(180, 90, 255), 45)
+
+local RefBtn = c("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "🔄 CLICK WHEN IN MATCH", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBlack, TextSize = 12, Parent = RefBg})
+c("UIStroke", {Color = Color3.fromRGB(0,0,0), Transparency = 0.5, Thickness = 1, Parent = RefBtn})
+
+local RefInfoBtn = c("TextButton", {Size = UDim2.new(0.15, 0, 1, 0), Position = UDim2.new(1, 0, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = BG_LIGHT, Text = "?", TextColor3 = Color3.fromRGB(160, 90, 255), Font = Enum.Font.GothamBlack, TextSize = 14, AutoButtonColor = false, Parent = RefRow})
+corner(RefInfoBtn, 10); stroke(RefInfoBtn, Color3.fromRGB(70, 75, 90))
+
+local RefInfoTxt = c("TextLabel", {Size = UDim2.new(1, 0, 0, 22), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = RefOrder + 1, BackgroundColor3 = Color3.fromRGB(35, 25, 45), Text = "⚠️ IMPORTANT: Click this button every time you spawn into a NEW MATCH! It resets the distance radar so it can correctly identify who is a 🔴 Enemy and who is a 🟢 Teammate.", TextColor3 = Color3.fromRGB(230, 160, 255), Font = Enum.Font.GothamSemibold, TextSize = 14, TextWrapped = true, Visible = false, BackgroundTransparency = 1, TextTransparency = 1, Parent = Content})
+corner(RefInfoTxt, 8); stroke(RefInfoTxt, Color3.fromRGB(160, 90, 255), 1); c("UIPadding", {PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = RefInfoTxt})
+local RefInfoStroke = RefInfoTxt:FindFirstChildOfClass("UIStroke"); if RefInfoStroke then RefInfoStroke.Transparency = 1 end
+
+RefBtn.MouseButton1Click:Connect(function()
+    tw(RefBg, {Size = UDim2.new(0.78, 0, 0.9, 0)}, 0.1); task.wait(0.1); tw(RefBg, {Size = UDim2.new(0.82, 0, 1, 0)}, 0.2, Enum.EasingStyle.Bounce)
+    PlayerRoles = {}; Notify("Teams Refreshed", "Distance check reset successfully!", Color3.fromRGB(160, 90, 255))
+end)
+RefInfoBtn.MouseButton1Click:Connect(function()
+    tw(RefInfoBtn, {Size = UDim2.new(0.13, 0, 0.9, 0)}, 0.1); task.wait(0.1); tw(RefInfoBtn, {Size = UDim2.new(0.15, 0, 1, 0)}, 0.2, Enum.EasingStyle.Bounce)
+    RefInfoTxt.Visible = true; tw(RefInfoTxt, {BackgroundTransparency = 0.1, TextTransparency = 0}, 0.3); if RefInfoStroke then tw(RefInfoStroke, {Transparency = 0.1}, 0.3) end
+    local clickTime = tick(); RefInfoTxt:SetAttribute("LastToggled", clickTime)
+    task.delay(10, function()
+        if RefInfoTxt:GetAttribute("LastToggled") == clickTime and RefInfoTxt.Visible then
+            tw(RefInfoTxt, {BackgroundTransparency = 1, TextTransparency = 1}, 0.5); if RefInfoStroke then tw(RefInfoStroke, {Transparency = 1}, 0.5) end
+            task.wait(0.5); if RefInfoTxt:GetAttribute("LastToggled") == clickTime then RefInfoTxt.Visible = false end
+        end
+    end)
+end)
+
+MakeHeader("MOBILITY", "Fly and walkspeed hacks.")
+MakeToggle("Enable Fly Mode", S.Fly, "Allows you to fly around the map! Turn this on and use your normal mobile movement joystick to fly in any direction smoothly.", function(v) S.Fly = v; Notify("Fly Mode", v and "Flight Enabled" or "Flight Disabled", v and ACCENT or Color3.fromRGB(255,60,60)) end)
+MakeTextbox("Flight Speed", S.FlySpeed, 10, 500, "Set your flying speed here. '50' is normal, but if you want to cross the map instantly, try setting it to '150'!", function(v) S.FlySpeed = v end)
+MakeToggle("Enable WalkSpeed", S.Speed, "Move much faster than normal. This uses a physics bypass to ensure your speed hacks work safely without triggering the anti-cheat.", function(v) S.Speed = v end)
+MakeTextbox("Walk Speed Value", S.WalkSpeed, 16, 300, "Set your walking speed. Default Roblox speed is 16. Enter 50 or 100 for a massive speed boost!", function(v) S.WalkSpeed = v end)
+
+MakeHeader("RADAR & STICK", "Tags: 🔴 Enemy, 🟢 Teammate, ⚪ Unknown.")
+
+local StatusLbl = c("TextLabel", {Size = UDim2.new(1, 0, 0, 20), LayoutOrder = O(), Text = "Status: Idle", TextColor3 = TEXT_SUB, TextSize = 12, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Center, BackgroundTransparency = 1, Parent = Content})
+
+local stickOrder = O()
+local StickRow = c("Frame", {Size = UDim2.new(1, 0, 0, 42), LayoutOrder = stickOrder, BackgroundTransparency = 1, Parent = Content})
+
+-- 🔥 STICK BUTTON 🔥
+local StickBg = c("Frame", {Size = UDim2.new(0.40, 0, 1, 0), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.20, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Parent = StickRow})
+corner(StickBg, 10); stroke(StickBg, Color3.fromRGB(10, 130, 80), 1.5)
+gradient(StickBg, Color3.fromRGB(15, 185, 110), Color3.fromRGB(45, 225, 140), 45)
+
+local StickBtn = c("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "STICK", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBlack, TextSize = 14, Parent = StickBg})
+c("UIStroke", {Color = Color3.fromRGB(0,0,0), Transparency = 0.5, Thickness = 1, Parent = StickBtn})
+
+-- 🔥 UNSTICK BUTTON 🔥
+local UnstickBg = c("Frame", {Size = UDim2.new(0.40, 0, 1, 0), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.70, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(255, 255, 255), Parent = StickRow})
+corner(UnstickBg, 10); stroke(UnstickBg, Color3.fromRGB(160, 25, 35), 1.5)
+gradient(UnstickBg, Color3.fromRGB(225, 50, 60), Color3.fromRGB(255, 85, 95), 45)
+
+local UnstickBtn = c("TextButton", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "UNSTICK", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBlack, TextSize = 14, Parent = UnstickBg})
+c("UIStroke", {Color = Color3.fromRGB(0,0,0), Transparency = 0.5, Thickness = 1, Parent = UnstickBtn})
+
+AttachInfo(StickRow, "First, TAP on a player's name in the list below. Then, click 'STICK'. You will instantly teleport behind them and stay locked to their back. Perfect for knife/melee fights!", stickOrder + 1, UDim2.new(0.40, 28, 0.5, 0))
+AttachInfo(StickRow, "When you are stuck to an enemy and want to break free, click 'UNSTICK'. You will regain normal movement immediately.", stickOrder + 2, UDim2.new(0.90, 28, 0.5, 0))
+
+local function DoUnstick()
+    if IsStuck and P.Character and P.Character:FindFirstChild("HumanoidRootPart") then P.Character.HumanoidRootPart.Anchored = false; if SavedPosition then P.Character.HumanoidRootPart.CFrame = SavedPosition end end
+    IsStuck = false; SavedPosition = nil; StatusLbl.Text = SelectedPlayer and ("Target: " .. SelectedPlayer.DisplayName) or "Status: Idle"
+    Notify("Unstuck", "Target lock released safely.", Color3.fromRGB(255, 100, 100))
+end
+
+StickBtn.MouseButton1Click:Connect(function()
+    tw(StickBg, {Size = UDim2.new(0.36, 0, 0.9, 0)}, 0.1); task.wait(0.1); tw(StickBg, {Size = UDim2.new(0.40, 0, 1, 0)}, 0.2, Enum.EasingStyle.Bounce)
+    if not SelectedPlayer then Notify("Action Failed", "Please select a target from the radar list first!", Color3.fromRGB(255, 60, 60)); return end
+    if not IsStuck and P.Character and P.Character:FindFirstChild("HumanoidRootPart") then SavedPosition = P.Character.HumanoidRootPart.CFrame; P.Character.HumanoidRootPart.Anchored = true end
+    IsStuck = true; StatusLbl.Text = "🔒 LOCKED: " .. SelectedPlayer.DisplayName
+    Notify("Target Locked", "Stuck securely behind " .. SelectedPlayer.DisplayName, Color3.fromRGB(15, 255, 170))
+end)
+
+UnstickBtn.MouseButton1Click:Connect(function()
+    tw(UnstickBg, {Size = UDim2.new(0.36, 0, 0.9, 0)}, 0.1); task.wait(0.1); tw(UnstickBg, {Size = UDim2.new(0.40, 0, 1, 0)}, 0.2, Enum.EasingStyle.Bounce); DoUnstick()
+end)
+
+local playerButtons = {}
+
+local function CreatePlayerButton(plr)
+    if playerButtons[plr] then return end
+    local isOwner = (plr.Name == OWNER_NAME)
+    local btn = c("TextButton", { Size = UDim2.new(1, 0, 0, 42), LayoutOrder = isOwner and -1 or 999, BackgroundColor3 = BG_LIGHT, Text = "⚪ " .. plr.DisplayName, TextColor3 = isOwner and Color3.fromRGB(255, 215, 0) or TEXT_MAIN, Font = isOwner and Enum.Font.GothamBlack or Enum.Font.GothamSemibold, TextSize = 12, Parent = Content, Visible = false })
+    corner(btn, 8); local strk = c("UIStroke", {Color = isOwner and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(45, 50, 65), Thickness = 1, Parent = btn})
+    btn.MouseButton1Click:Connect(function() 
+        SelectedPlayer = plr; StatusLbl.Text = IsStuck and ("🔒 LOCKED: " .. plr.DisplayName) or ("Target: " .. plr.DisplayName)
+        Notify("Target Selected", "Selected: " .. plr.DisplayName, isOwner and Color3.fromRGB(255,215,0) or ACCENT)
+        for p, b in pairs(playerButtons) do tw(b, {BackgroundColor3 = BG_LIGHT}, 0.2); local s = b:FindFirstChildOfClass("UIStroke"); if s then s.Color = (p.Name == OWNER_NAME) and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(45, 50, 65) end end
+        tw(btn, {BackgroundColor3 = isOwner and Color3.fromRGB(50, 40, 15) or Color3.fromRGB(45, 25, 35)}, 0.2); strk.Color = isOwner and Color3.fromRGB(255, 255, 0) or ACCENT
+    end)
+    playerButtons[plr] = btn
+end
+
+for _, plr in pairs(Players:GetPlayers()) do if plr ~= P then CreatePlayerButton(plr) end end
+Players.PlayerAdded:Connect(function(plr) CreatePlayerButton(plr) end)
+Players.PlayerRemoving:Connect(function(plr) if playerButtons[plr] then playerButtons[plr]:Destroy(); playerButtons[plr] = nil end; if SelectedPlayer == plr then SelectedPlayer = nil; if IsStuck then DoUnstick() end end end)
+P.CharacterAdded:Connect(function() PlayerRoles = {} end)
+
+task.spawn(function()
+    while task.wait(1) do
+        local myHRP = P.Character and P.Character:FindFirstChild("HumanoidRootPart")
+        for plr, btn in pairs(playerButtons) do
+            local isOwner = (plr.Name == OWNER_NAME)
+            local show, distStr = false, ""
+            if not PlayerRoles[plr.Name] and myHRP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then PlayerRoles[plr.Name] = ((myHRP.Position - plr.Character.HumanoidRootPart.Position).Magnitude > 45) and "Enemy" or "Ally" end
+            local roleText = (PlayerRoles[plr.Name] == "Enemy") and "🔴" or ((PlayerRoles[plr.Name] == "Ally") and "🟢" or "⚪")
+            if myHRP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local dist = (plr.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                if isOwner or dist <= 1500 then show = true; distStr = "  [" .. math.floor(dist) .. "m]" end
+            elseif not myHRP then show = true end
+            if isOwner or SelectedPlayer == plr then show = true end 
+            btn.Text = roleText .. " " .. (isOwner and ("👑 [OWNER] " .. plr.DisplayName) or plr.DisplayName) .. distStr
+            btn.Visible = show
+        end
+    end
+end)
+
+local isMin = false
+MinBtn.MouseButton1Click:Connect(function() 
+    isMin = not isMin
+    if isMin then tw(Content, {CanvasPosition = Vector2.new(0,0)}, 0.2); task.wait(0.1); Content.Visible = false; tw(Main, {Size = UDim2.new(0, 290, 0, 50)}, 0.4, Enum.EasingStyle.Back)
+    else tw(Main, {Size = UDim2.new(0, 290, 0, 380)}, 0.4, Enum.EasingStyle.Back); task.wait(0.2); Content.Visible = true end
+    MinBtn.Text = isMin and "+" or "-" 
+end)
+
+local function IsVisible(part)
+    local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {P.Character, Cam}; params.IgnoreWater = true
+    local result = workspace:Raycast(Cam.CFrame.Position, part.Position - Cam.CFrame.Position, params)
+    return result and result.Instance:IsDescendantOf(part.Parent) or false
+end
+
+local function GetClosestAimbotTarget()
+    local bestTgt, minDist, center = nil, math.huge, Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= P and p.Character and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 and not (S.Team and PlayerRoles[p.Name] == "Ally") then
+            local part = p.Character[S.Part]
+            if (part.Position - Cam.CFrame.Position).Magnitude <= 1500 then
+                local pos, onScr = Cam:WorldToViewportPoint(part.Position)
+                if onScr then
+                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if (not S.FOV) or (dist <= S.Rad) then if dist < minDist and (not S.WallCheck or IsVisible(part)) then minDist = dist; bestTgt = part end end
+                end
+            end
+        end
+    end
+    return bestTgt
+end
+
+RS.RenderStepped:Connect(function()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= P and plr.Character then
+            local hl = ESPFolder:FindFirstChild("ESP_" .. plr.Name)
+            if S.ESP then
+                if not hl then hl = c("Highlight", {Name = "ESP_" .. plr.Name, FillTransparency = 0.5, OutlineTransparency = 0, DepthMode = Enum.HighlightDepthMode.AlwaysOnTop, Parent = ESPFolder}) end
+                hl.Adornee = plr.Character; hl.FillColor = (PlayerRoles[plr.Name] == "Ally") and Color3.fromRGB(0, 255, 50) or ACCENT
+            elseif hl then hl:Destroy() end
+        end
+    end
+
+    local myChar = P.Character
+    local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local hum = myChar and myChar:FindFirstChild("Humanoid")
+
+    if S.Fly and hrp and hum and hum.Health > 0 then
+        local bv = hrp:FindFirstChild("DeltaFlyBV") or c("BodyVelocity", {Name = "DeltaFlyBV", MaxForce = Vector3.new(9e9, 9e9, 9e9), Parent = hrp})
+        local bg = hrp:FindFirstChild("DeltaFlyBG") or c("BodyGyro", {Name = "DeltaFlyBG", MaxTorque = Vector3.new(9e9, 9e9, 9e9), P = 9e4, Parent = hrp})
+        hum.PlatformStand = true; local md = hum.MoveDirection
+        if md.Magnitude > 0 then
+            local fL, fR = Vector3.new(Cam.CFrame.LookVector.X, 0, Cam.CFrame.LookVector.Z).Unit, Vector3.new(Cam.CFrame.RightVector.X, 0, Cam.CFrame.RightVector.Z).Unit
+            local finalVel = (Cam.CFrame.LookVector * md:Dot(fL)) + (Cam.CFrame.RightVector * md:Dot(fR))
+            bv.Velocity = (finalVel.Magnitude > 0) and finalVel.Unit * S.FlySpeed or Vector3.new(0,0,0)
+        else bv.Velocity = Vector3.new(0, 0, 0) end
+        bg.CFrame = Cam.CFrame
+    else
+        if hrp then if hrp:FindFirstChild("DeltaFlyBV") then hrp.DeltaFlyBV:Destroy() end; if hrp:FindFirstChild("DeltaFlyBG") then hrp.DeltaFlyBG:Destroy() end end
+        if hum then hum.PlatformStand = false end
+        if S.Speed and hrp and hum and hum.Health > 0 then
+            hum.WalkSpeed = S.WalkSpeed
+            if hum.MoveDirection.Magnitude > 0 then
+                local v = hrp.AssemblyLinearVelocity
+                hrp.AssemblyLinearVelocity = Vector3.new(hum.MoveDirection.X * S.WalkSpeed, v.Y, hum.MoveDirection.Z * S.WalkSpeed)
+            end
+        end
+    end
+
+    if IsStuck and SelectedPlayer and SelectedPlayer.Character then
+        local tgtHRP, tgtHead = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart"), SelectedPlayer.Character:FindFirstChild("Head")
+        if hrp and tgtHRP then hrp.CFrame = tgtHRP.CFrame * CFrame.new(0, 0, 2.5) end
+        if tgtHead then Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, tgtHead.Position) end
+    elseif S.Aimbot then
+        if CurrentAimTarget and CurrentAimTarget.Parent and CurrentAimTarget.Parent:FindFirstChild("Humanoid") and CurrentAimTarget.Parent.Humanoid.Health > 0 then
+            local pos, onScr = Cam:WorldToViewportPoint(CurrentAimTarget.Position)
+            if not onScr or (S.FOV and (Vector2.new(pos.X, pos.Y) - Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)).Magnitude > S.Rad) or (S.WallCheck and not IsVisible(CurrentAimTarget)) then CurrentAimTarget = nil end
+        else CurrentAimTarget = nil end
+        if not CurrentAimTarget then CurrentAimTarget = GetClosestAimbotTarget() end
+        if CurrentAimTarget then Cam.CFrame = S.SmoothAim and Cam.CFrame:Lerp(CFrame.lookAt(Cam.CFrame.Position, CurrentAimTarget.Position), math.clamp(S.Smooth / 100, 0.01, 1)) or CFrame.lookAt(Cam.CFrame.Position, CurrentAimTarget.Position) end
+    end
+end)
