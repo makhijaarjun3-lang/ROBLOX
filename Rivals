@@ -19,7 +19,7 @@ local BG_INPUT = Color3.fromRGB(12, 14, 20)
 local TEXT_MAIN = Color3.fromRGB(245, 245, 250)
 local TEXT_SUB = Color3.fromRGB(170, 175, 190)
 
-local S = { Aimbot = false, SmoothAim = false, Smooth = 15, FOV = false, Rad = 120, ESP = false, Team = true, WallCheck = true, Part = "Head", Fly = false, FlySpeed = 50, Speed = false, WalkSpeed = 50 }
+local S = { Aimbot = false, SmoothAim = false, Smooth = 15, FOV = false, Rad = 120, ESP = false, Team = true, WallCheck = true, Part = "Head", Fly = false, FlySpeed = 50, Speed = false, WalkSpeed = 50, KeepStick = true }
 local PlayerRoles, SelectedPlayer, IsStuck, SavedPosition, CurrentAimTarget = {}, nil, false, nil, nil
 
 -- 🛠 UI Helpers
@@ -91,7 +91,7 @@ Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Conten
 local curOrder = 0
 local function O() curOrder = curOrder + 10; return curOrder end
 
--- 🔥 INFO BUBBLE SYSTEM WITH CLEAR EXPLANATIONS 🔥
+-- 🔥 INFO BUBBLE SYSTEM 🔥
 local function AttachInfo(parentFrame, infoString, layoutOrderNum, btnPos)
     local InfoBtn = c("TextButton", {Size = UDim2.new(0, 24, 0, 24), AnchorPoint = Vector2.new(1, 0.5), Position = btnPos, BackgroundColor3 = Color3.fromRGB(35, 38, 50), Text = "?", TextColor3 = ACCENT_GLOW, Font = Enum.Font.GothamBlack, TextSize = 12, Parent = parentFrame, AutoButtonColor = false})
     corner(InfoBtn, 12); stroke(InfoBtn, Color3.fromRGB(70, 75, 90))
@@ -141,26 +141,36 @@ end
 
 local function MakeTextbox(txt, def, minVal, maxVal, infoText, cb)
     local order = O()
+    local lastValid = def
     local f = c("Frame", {Size = UDim2.new(1, 0, 0, 42), LayoutOrder = order, BackgroundColor3 = BG_LIGHT, Parent = Content}); corner(f, 10); stroke(f, Color3.fromRGB(45, 50, 65))
     c("TextLabel", {Size = UDim2.new(0.55, 0, 1, 0), Position = UDim2.new(0, 14, 0, 0), Text = txt, TextColor3 = TEXT_SUB, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Parent = f})
     local box = c("TextBox", {Size = UDim2.new(0.28, 0, 0, 28), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), BackgroundColor3 = BG_INPUT, Text = tostring(def), TextColor3 = ACCENT_GLOW, Font = Enum.Font.GothamBlack, TextSize = 13, Parent = f})
     corner(box, 6); stroke(box, Color3.fromRGB(65, 70, 85))
     if infoText then AttachInfo(f, infoText, order + 1, UDim2.new(1, -100, 0.5, 0)) end
     box.FocusLost:Connect(function() 
-        local num = tonumber(box.Text); if num then num = math.clamp(num, minVal, maxVal); box.Text = tostring(num); cb(num) else box.Text = tostring(def); cb(def) end 
+        local num = tonumber(box.Text)
+        if num then 
+            num = math.clamp(num, minVal, maxVal)
+            lastValid = num
+            box.Text = tostring(num)
+            cb(num) 
+        else 
+            box.Text = tostring(lastValid)
+            cb(lastValid) 
+        end 
     end)
 end
 
 MakeHeader("TARGETING", "Configure Aimbot settings here.")
-MakeToggle("Enable Aimbot", S.Aimbot, "Automatically locks your camera onto the nearest enemy's head. Make sure to turn on 'Spawn Team Check' so it ignores your teammates!", function(v) S.Aimbot = v; if not v then CurrentAimTarget = nil end; Notify("Aimbot", v and "Aimbot Enabled" or "Aimbot Disabled", v and ACCENT or Color3.fromRGB(255,60,60)) end)
-MakeToggle("Smooth Tracking", S.SmoothAim, "The Aimbot will smoothly track targets instead of instantly snapping to them. This makes your aim look 100% natural and legitimate.", function(v) S.SmoothAim = v end)
-MakeTextbox("Smoothness", S.Smooth, 1, 100, "Enter a number from 1 to 100. '1' is an instant snap, while '100' is extremely slow and smooth. 15 or 20 is usually the best setting!", function(v) S.Smooth = v end)
-MakeToggle("Show FOV Circle", S.FOV, "Displays a visible circle on your screen. The Aimbot will ONLY target enemies that are inside this circle, keeping your aimbot safe and natural.", function(v) S.FOV = v; FOVCircle.Visible = v end)
+MakeToggle("Enable Aimbot", S.Aimbot, "360-Degree Lock! Automatically locks your camera onto the nearest enemy's head anywhere around you. Make sure 'Spawn Team Check' is ON!", function(v) S.Aimbot = v; if not v then CurrentAimTarget = nil end; Notify("Aimbot", v and "Aimbot Enabled (360°)" or "Aimbot Disabled", v and ACCENT or Color3.fromRGB(255,60,60)) end)
+MakeToggle("Smooth Tracking", S.SmoothAim, "The Aimbot will smoothly track targets instead of instantly snapping to them. Turn this OFF for an unshakeable instant lock!", function(v) S.SmoothAim = v end)
+MakeTextbox("Smoothness", S.Smooth, 1, 100, "Enter a number from 1 to 100. '1' is super slow, while '100' is an instant lock. 15 or 20 is great for smooth tracking!", function(v) S.Smooth = v end)
+MakeToggle("Show FOV Circle", S.FOV, "If OFF, Aimbot works 360 degrees all around you. If ON, Aimbot will ONLY lock onto enemies inside the circle on your screen.", function(v) S.FOV = v; FOVCircle.Visible = v end)
 MakeTextbox("FOV Radius", S.Rad, 30, 800, "Adjusts the size of the FOV Circle. A larger number makes the circle bigger, allowing the aimbot to catch enemies further away from your crosshair.", function(v) S.Rad = v; tw(FOVCircle, {Size = UDim2.new(0, v*2, 0, v*2)}, 0.4, Enum.EasingStyle.Elastic) end)
 
 MakeHeader("ESP & LOGIC", "Visuals and game logic.")
 MakeToggle("Smart Highlight ESP", S.ESP, "See players through walls! Enemies will glow RED 🔴, and your teammates will glow GREEN 🟢.", function(v) S.ESP = v end)
-MakeToggle("Strict Wall Check", S.WallCheck, "If an enemy is hiding behind a wall, the Aimbot will NOT lock onto them. This prevents you from suspiciously aiming at walls.", function(v) S.WallCheck = v end)
+MakeToggle("Strict Wall Check", S.WallCheck, "If ON, Aimbot only locks onto visible enemies not behind walls. Turn this OFF if you want 100% non-stop lock even through walls!", function(v) S.WallCheck = v end)
 MakeToggle("Spawn Team Check", S.Team, "Highly Recommended! Automatically identifies enemies and teammates based on how far away they spawn from you. Essential for custom matches.", function(v) S.Team = v end)
 
 -- 🔥 REFRESH BUTTON 🔥
@@ -200,10 +210,17 @@ end)
 MakeHeader("MOBILITY", "Fly and walkspeed hacks.")
 MakeToggle("Enable Fly Mode", S.Fly, "Allows you to fly around the map! Turn this on and use your normal mobile movement joystick to fly in any direction smoothly.", function(v) S.Fly = v; Notify("Fly Mode", v and "Flight Enabled" or "Flight Disabled", v and ACCENT or Color3.fromRGB(255,60,60)) end)
 MakeTextbox("Flight Speed", S.FlySpeed, 10, 500, "Set your flying speed here. '50' is normal, but if you want to cross the map instantly, try setting it to '150'!", function(v) S.FlySpeed = v end)
-MakeToggle("Enable WalkSpeed", S.Speed, "Move much faster than normal. This uses a physics bypass to ensure your speed hacks work safely without triggering the anti-cheat.", function(v) S.Speed = v end)
+MakeToggle("Enable WalkSpeed", S.Speed, "Move much faster than normal. This uses a physics bypass to ensure your speed hacks work safely without triggering the anti-cheat.", function(v) 
+    S.Speed = v 
+    if not v and P.Character and P.Character:FindFirstChild("Humanoid") then
+        P.Character.Humanoid.WalkSpeed = 16
+    end
+end)
 MakeTextbox("Walk Speed Value", S.WalkSpeed, 16, 300, "Set your walking speed. Default Roblox speed is 16. Enter 50 or 100 for a massive speed boost!", function(v) S.WalkSpeed = v end)
 
 MakeHeader("RADAR & STICK", "Tags: 🔴 Enemy, 🟢 Teammate, ⚪ Unknown.")
+
+MakeToggle("Keep Stick on Respawn", S.KeepStick, "If enabled, you will automatically stay locked and anchored behind your target even if you die and respawn! Turn this OFF if you want to unstick automatically when you die.", function(v) S.KeepStick = v end)
 
 local StatusLbl = c("TextLabel", {Size = UDim2.new(1, 0, 0, 20), LayoutOrder = O(), Text = "Status: Idle", TextColor3 = TEXT_SUB, TextSize = 12, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Center, BackgroundTransparency = 1, Parent = Content})
 
@@ -265,8 +282,27 @@ end
 
 for _, plr in pairs(Players:GetPlayers()) do if plr ~= P then CreatePlayerButton(plr) end end
 Players.PlayerAdded:Connect(function(plr) CreatePlayerButton(plr) end)
-Players.PlayerRemoving:Connect(function(plr) if playerButtons[plr] then playerButtons[plr]:Destroy(); playerButtons[plr] = nil end; if SelectedPlayer == plr then SelectedPlayer = nil; if IsStuck then DoUnstick() end end end)
-P.CharacterAdded:Connect(function() PlayerRoles = {} end)
+Players.PlayerRemoving:Connect(function(plr) 
+    if playerButtons[plr] then playerButtons[plr]:Destroy(); playerButtons[plr] = nil end
+    local hl = ESPFolder:FindFirstChild("ESP_" .. plr.Name)
+    if hl then hl:Destroy() end
+    if SelectedPlayer == plr then SelectedPlayer = nil; if IsStuck then DoUnstick() end end 
+end)
+
+P.CharacterAdded:Connect(function(newChar) 
+    PlayerRoles = {}
+    if IsStuck then
+        if S.KeepStick then
+            local hrp = newChar:WaitForChild("HumanoidRootPart", 5)
+            if hrp and IsStuck then hrp.Anchored = true end
+        else
+            IsStuck = false
+            SavedPosition = nil
+            StatusLbl.Text = SelectedPlayer and ("Target: " .. SelectedPlayer.DisplayName) or "Status: Idle"
+            Notify("Unstuck", "Auto-unstuck on respawn.", Color3.fromRGB(255, 100, 100))
+        end
+    end
+end)
 
 task.spawn(function()
     while task.wait(1) do
@@ -303,14 +339,27 @@ end
 
 local function GetClosestAimbotTarget()
     local bestTgt, minDist, center = nil, math.huge, Vector2.new(Cam.ViewportSize.X / 2, Cam.ViewportSize.Y / 2)
+    local myPos = (P.Character and P.Character:FindFirstChild("HumanoidRootPart") and P.Character.HumanoidRootPart.Position) or Cam.CFrame.Position
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= P and p.Character and p.Character:FindFirstChild(S.Part) and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 and not (S.Team and PlayerRoles[p.Name] == "Ally") then
             local part = p.Character[S.Part]
-            if (part.Position - Cam.CFrame.Position).Magnitude <= 1500 then
-                local pos, onScr = Cam:WorldToViewportPoint(part.Position)
-                if onScr then
-                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    if (not S.FOV) or (dist <= S.Rad) then if dist < minDist and (not S.WallCheck or IsVisible(part)) then minDist = dist; bestTgt = part end end
+            local worldDist = (part.Position - myPos).Magnitude
+            if worldDist <= 1500 and (not S.WallCheck or IsVisible(part)) then
+                if S.FOV then
+                    local pos, onScr = Cam:WorldToViewportPoint(part.Position)
+                    if onScr then
+                        local scrDist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                        if scrDist <= S.Rad and scrDist < minDist then
+                            minDist = scrDist
+                            bestTgt = part
+                        end
+                    end
+                else
+                    -- 🔥 360-DEGREE LOCK: Finds closest enemy in 3D space even behind your back!
+                    if worldDist < minDist then
+                        minDist = worldDist
+                        bestTgt = part
+                    end
                 end
             end
         end
@@ -357,14 +406,28 @@ RS.RenderStepped:Connect(function()
 
     if IsStuck and SelectedPlayer and SelectedPlayer.Character then
         local tgtHRP, tgtHead = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart"), SelectedPlayer.Character:FindFirstChild("Head")
-        if hrp and tgtHRP then hrp.CFrame = tgtHRP.CFrame * CFrame.new(0, 0, 2.5) end
+        if hrp and tgtHRP then 
+            if not hrp.Anchored then hrp.Anchored = true end
+            hrp.CFrame = tgtHRP.CFrame * CFrame.new(0, 0, 2.5) 
+        end
         if tgtHead then Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, tgtHead.Position) end
     elseif S.Aimbot then
-        if CurrentAimTarget and CurrentAimTarget.Parent and CurrentAimTarget.Parent:FindFirstChild("Humanoid") and CurrentAimTarget.Parent.Humanoid.Health > 0 then
-            local pos, onScr = Cam:WorldToViewportPoint(CurrentAimTarget.Position)
-            if not onScr or (S.FOV and (Vector2.new(pos.X, pos.Y) - Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)).Magnitude > S.Rad) or (S.WallCheck and not IsVisible(CurrentAimTarget)) then CurrentAimTarget = nil end
-        else CurrentAimTarget = nil end
+        local myPos = (hrp and hrp.Position) or Cam.CFrame.Position
+        if CurrentAimTarget and CurrentAimTarget.Parent and CurrentAimTarget.Parent:FindFirstChild("Humanoid") and CurrentAimTarget.Parent.Humanoid.Health > 0 and not (S.Team and PlayerRoles[CurrentAimTarget.Parent.Name] == "Ally") then
+            if (CurrentAimTarget.Position - myPos).Magnitude > 1500 or (S.WallCheck and not IsVisible(CurrentAimTarget)) then
+                CurrentAimTarget = nil
+            elseif S.FOV then
+                local pos, onScr = Cam:WorldToViewportPoint(CurrentAimTarget.Position)
+                if not onScr or (Vector2.new(pos.X, pos.Y) - Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)).Magnitude > S.Rad then
+                    CurrentAimTarget = nil
+                end
+            end
+        else 
+            CurrentAimTarget = nil 
+        end
         if not CurrentAimTarget then CurrentAimTarget = GetClosestAimbotTarget() end
-        if CurrentAimTarget then Cam.CFrame = S.SmoothAim and Cam.CFrame:Lerp(CFrame.lookAt(Cam.CFrame.Position, CurrentAimTarget.Position), math.clamp(S.Smooth / 100, 0.01, 1)) or CFrame.lookAt(Cam.CFrame.Position, CurrentAimTarget.Position) end
+        if CurrentAimTarget then 
+            Cam.CFrame = S.SmoothAim and Cam.CFrame:Lerp(CFrame.lookAt(Cam.CFrame.Position, CurrentAimTarget.Position), math.clamp(S.Smooth / 100, 0.01, 1)) or CFrame.lookAt(Cam.CFrame.Position, CurrentAimTarget.Position) 
+        end
     end
 end)
